@@ -321,10 +321,13 @@ class Block(nn.Module):
             # residual connection
             hidden_states = hidden_states + attn_output
             outputs = outputs + cross_attn_outputs[2:]  # add cross attentions if we output attention weights
-
-        feed_forward_hidden_states = self.mlp(self.ln_2(hidden_states))
+        layernorm_output = self.ln_2(hidden_states)
+        feed_forward_hidden_states = self.mlp(layernorm_output)
         # residual connection
-        hidden_states = hidden_states + feed_forward_hidden_states
+        if self.megatron_lm:
+            hidden_states = layernorm_output + feed_forward_hidden_states
+        else:
+            hidden_states = hidden_states + feed_forward_hidden_states
 
         if use_cache:
             outputs = (hidden_states,) + outputs
