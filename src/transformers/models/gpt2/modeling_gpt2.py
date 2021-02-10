@@ -263,8 +263,9 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, n_ctx, config, scale=False):
+    def __init__(self, n_ctx, config, scale=False, megatron_lm=True):
         super().__init__()
+        self.megatron_lm = megatron_lm
         hidden_size = config.n_embd
         inner_dim = config.n_inner if config.n_inner is not None else 4 * hidden_size
         self.ln_1 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
@@ -286,8 +287,9 @@ class Block(nn.Module):
         use_cache=False,
         output_attentions=False,
     ):
+        layernorm_output = self.ln_1(hidden_states)
         attn_outputs = self.attn(
-            self.ln_1(hidden_states),
+            layernorm_output,
             layer_past=layer_past,
             attention_mask=attention_mask,
             head_mask=head_mask,
@@ -297,7 +299,10 @@ class Block(nn.Module):
         attn_output = attn_outputs[0]  # output_attn: a, present, (attentions)
         outputs = attn_outputs[1:]
         # residual connection
-        hidden_states = attn_output + hidden_states
+        if self.megatron_lm:
+            hidden_states = attn_output + layernorm_output
+        else:
+            hidden_states = attn_output + hidden_states
 
         if encoder_hidden_states is not None:
             # add one self-attention block for cross-attention
